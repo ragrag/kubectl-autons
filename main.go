@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -37,7 +36,7 @@ func main() {
 
 	discoveryClient, dynClient := k8sClient()
 
-	clusterResources := resourcesOrDie(discoveryClient)
+	clusterResources := clusterResourcesOrDie(discoveryClient)
 	parsedResource := parseResourceOrDie(discoveryClient, args, clusterResources)
 	namespaces := namespacesOrDie(dynClient, clusterResources, parsedResource)
 
@@ -61,7 +60,6 @@ func main() {
 func parseResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, clusterResources *apiResourceMeta) *resourceParseResult {
 	command := args[1]
 	resourceOrPrefixed := args[2]
-	fmt.Println(command, resourceOrPrefixed)
 
 	var resource string
 	var name string
@@ -136,7 +134,7 @@ func namespacesOrDie(dynClient *dynamic.DynamicClient, clusterResources *apiReso
 	return unique(namespaces)
 }
 
-func resourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResourceMeta {
+func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResourceMeta {
 	apiGroupList, err := discoveryClient.ServerGroups()
 	if err != nil {
 		log.Fatalf("error while parsing resources %v", err)
