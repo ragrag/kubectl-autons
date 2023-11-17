@@ -12,7 +12,7 @@ Now you can :name_badge:
 
 ## Getting started
 
-1. Either build the binary from source with go build or download the latest release for your platfrom from github releases
+1. Download the latest release for your platfrom from github releases or build the binary from source with go build
 2. Make sure to rename the binary name to `kubectl-autons` and that it is executable
 2. Move the binary to a directory in your PATH
 3. Run `kubectl autons <command>` and never worry about namespaces again!
