@@ -5,16 +5,17 @@ Automatic namespace detection for k8s resources
 ## Introduction
 
 Are you frustrated by having to specify the namespace for every kubectl command?
+
 Do you wish you could just run `kubectl get pod my-pod` and not worry about specifying the namespace?
 
 Now you can :name_badge:
 
 ## Getting started
 
-1- Either build the binary from source with go build or download the latest release for your platfrom from github releases
-2- Make sure to rename the binary name to `kubectl-autons` and that it is executable
-2- Move the binary to a directory in your PATH
-3- Run `kubectl autons <command>` and never worry about namespaces again!
+1. Either build the binary from source with go build or download the latest release for your platfrom from github releases
+2. Make sure to rename the binary name to `kubectl-autons` and that it is executable
+2. Move the binary to a directory in your PATH
+3. Run `kubectl autons <command>` and never worry about namespaces again!
 
 ## Some Examples
 
