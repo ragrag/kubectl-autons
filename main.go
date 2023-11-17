@@ -19,13 +19,18 @@ import (
 type resourceParseResult struct {
 	resource string
 	name     string
-	versions []string
+	versions []apiResourceVersion
 }
 
 type apiResourceMeta struct {
 	resources []string
-	versions  map[string][]string
+	versions  map[string][]apiResourceVersion
 	pluralMap map[string]string
+}
+
+type apiResourceVersion struct {
+	groupName string
+	version   string
 }
 
 func main() {
@@ -63,7 +68,7 @@ func parseResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []strin
 
 	var resource string
 	var name string
-	var versions []string
+	var versions []apiResourceVersion
 
 	if command == "logs" {
 		resource = "pods"
@@ -113,16 +118,17 @@ func parseResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []strin
 func namespacesOrDie(dynClient *dynamic.DynamicClient, clusterResources *apiResourceMeta, parsedResource *resourceParseResult) []string {
 	var namespaces []string
 
-	for _, v := range unique(parsedResource.versions) {
-		resourceSchema := schema.GroupVersionResource{Group: "", Version: v, Resource: clusterResources.pluralMap[parsedResource.resource]}
-		list, err := dynClient.Resource(resourceSchema).Namespace("").List(context.TODO(), v1.ListOptions{})
+	for _, v := range uniqueVersions(parsedResource.versions) {
+		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: clusterResources.pluralMap[parsedResource.resource]}
+		resourceList, err := dynClient.Resource(resourceSchema).Namespace(v1.NamespaceAll).List(context.TODO(), v1.ListOptions{})
+
 		if err != nil {
 			log.Fatalf("Error finding resources: %s", err.Error())
 		}
 
-		for _, d := range list.Items {
-			if d.GetName() == parsedResource.name {
-				namespaces = append(namespaces, d.GetNamespace())
+		for _, resource := range resourceList.Items {
+			if resource.GetName() == parsedResource.name {
+				namespaces = append(namespaces, resource.GetNamespace())
 			}
 		}
 	}
@@ -141,7 +147,7 @@ func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResou
 	}
 
 	var resources []string
-	var versions = make(map[string][]string)
+	var versions = make(map[string][]apiResourceVersion)
 	var pluralMap = make(map[string]string)
 
 	for _, group := range apiGroupList.Groups {
@@ -151,9 +157,8 @@ func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResou
 				log.Fatalf("error while parsing resources %v", err)
 			}
 			for _, resource := range resourceList.APIResources {
-
-				versions[resource.Name] = append(versions[resource.Name], version.GroupVersion)
-				versions[resource.SingularName] = append(versions[resource.Name], version.GroupVersion)
+				versions[resource.Name] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
+				versions[resource.SingularName] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
 
 				pluralMap[resource.Name] = resource.Name
 				pluralMap[resource.SingularName] = resource.Name
@@ -161,7 +166,7 @@ func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResou
 				resources = append(resources, resource.Name, resource.SingularName)
 
 				for _, shortName := range resource.ShortNames {
-					versions[shortName] = append(versions[resource.Name], version.GroupVersion)
+					versions[shortName] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
 					pluralMap[shortName] = resource.Name
 					resources = append(resources, shortName)
 				}
@@ -204,6 +209,19 @@ func unique(s []string) []string {
 		v := mp[entry]
 		if !v {
 			mp[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
+func uniqueVersions(resourceVersions []apiResourceVersion) []apiResourceVersion {
+	mp := make(map[string]bool)
+	var list []apiResourceVersion
+	for _, entry := range resourceVersions {
+		v := mp[entry.groupName+"/"+entry.version]
+		if !v {
+			mp[entry.groupName+"/"+entry.version] = true
 			list = append(list, entry)
 		}
 	}

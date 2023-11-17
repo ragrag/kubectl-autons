@@ -6,18 +6,18 @@ mkdir -p "${BIN_DIR}"
 
 # macOS (Intel)
 echo "Building for macOS (Intel)..."
-GOOS=darwin GOARCH=amd64 go build -o "${BIN_DIR}/kubectl-autons-darwin-amd64" main.go
+GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-darwin-amd64" main.go
 
 # macOS (M1)
 echo "Building for macOS (M1)..."
-GOOS=darwin GOARCH=arm64 go build -o "${BIN_DIR}/kubectl-autons-darwin-arm64" main.go
+GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-darwin-arm64" main.go
 
 # Linux
 echo "Building for Linux..."
-GOOS=linux GOARCH=amd64 go build -o "${BIN_DIR}/kubectl-autons-linux-amd64" main.go
+GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-linux-amd64" main.go
 
 # Windows
 echo "Building for Windows..."
-GOOS=windows GOARCH=amd64 go build -o "${BIN_DIR}/kubectl-autons-windows-amd64.exe" main.go
+GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-windows-amd64.exe" main.go
 
 echo "Build complete."
