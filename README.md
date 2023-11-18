@@ -38,7 +38,3 @@ kubectl autons port-forward my-pod 8080:8080
 ```base
 kubectl autons port-forward svc/my-svc 8080:8080
 ```
-
-## Caveats
-
-in cases where a resource is found in multiple namespaces, an error is expected and you will have to specify the desired namespace manually
