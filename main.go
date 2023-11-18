@@ -199,7 +199,6 @@ func k8sClient() (*discovery.DiscoveryClient, *dynamic.DynamicClient) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		log.Fatalf("couldn't initialize client %v", err)
-		panic(err.Error())
 	}
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
