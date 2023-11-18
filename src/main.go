@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -14,6 +16,11 @@ type targetResource struct {
 }
 
 func main() {
+	if strings.HasPrefix(filepath.Base(os.Args[0]), "kubectl-") && (len(os.Args) == 1 || os.Args[1] == "--help" || os.Args[1] == "-h") {
+		fmt.Println("use with kubectl autons <command> [<resource-type> <resource>|<resource-type>/<resource>]")
+		os.Exit(0)
+	}
+
 	args := os.Args[1:]
 
 	if len(args) < 2 {
