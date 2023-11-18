@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Directory for the compiled binaries
+
 BIN_DIR="./bin"
-LICENSE_FILE="./LICENSE" # assuming the LICENSE file is in the current directory
+LICENSE_FILE="./LICENSE"
 rm -rf "${BIN_DIR}"
 mkdir -p "${BIN_DIR}"
 
-# Function to build, compress, and print SHA256
+# build, compress and print sha256 checksum
 build_compress_sha() {
   os=$1
   arch=$2
@@ -15,7 +15,7 @@ build_compress_sha() {
     bin_name="${bin_name}.exe"
   fi
 
-  echo "Building for ${os} (${arch})..."
+  echo "Building for ${os}-(${arch})..."
   env GOOS=${os} GOARCH=${arch} go build -ldflags="-w -s" -o "${BIN_DIR}/${bin_name}" src/main.go
 
   cp ${LICENSE_FILE} "${BIN_DIR}/LICENSE"
@@ -40,4 +40,4 @@ build_compress_sha "linux" "amd64"
 # Windows
 build_compress_sha "windows" "amd64"
 
-echo "Build and SHA256 checksum complete."
+echo "cross compilation complete"
