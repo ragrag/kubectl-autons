@@ -4,24 +4,28 @@
 BIN_DIR="./bin"
 mkdir -p "${BIN_DIR}"
 
-# native 
-echo "Building for native..."
-go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons" src/main.go
-
 # macOS (Intel)
 echo "Building for macOS (Intel)..."
-GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-darwin-amd64" src/main.go
+GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons" src/main.go
+tar -czvf "${BIN_DIR}/kubectl-autons-darwin-amd64.tar.gz" -C "${BIN_DIR}" kubectl-autons
+rm "${BIN_DIR}/kubectl-autons"
 
 # macOS (M1)
 echo "Building for macOS (M1)..."
-GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-darwin-arm64" src/main.go
+GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons" src/main.go
+tar -czvf "${BIN_DIR}/kubectl-autons-darwin-arm64.tar.gz" -C "${BIN_DIR}" kubectl-autons
+rm "${BIN_DIR}/kubectl-autons"
 
 # Linux
 echo "Building for Linux..."
-GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-linux-amd64" src/main.go
+GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons" src/main.go
+tar -czvf "${BIN_DIR}/kubectl-autons-linux-amd64.tar.gz" -C "${BIN_DIR}" kubectl-autons
+rm "${BIN_DIR}/kubectl-autons"
 
 # Windows
 echo "Building for Windows..."
-GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-windows-amd64.exe" src/main.go
+GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons.exe" src/main.go
+tar -czvf "${BIN_DIR}/kubectl-autons-windows-amd64.tar.gz" -C "${BIN_DIR}" kubectl-autons.exe
+rm "${BIN_DIR}/kubectl-autons.exe"
 
 echo "Build complete."
