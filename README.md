@@ -6,9 +6,9 @@ Automatic namespace detection for kubectl commands
 
 Are you frustrated by having to specify the namespace for every kubectl command?
 
-Do you wish you could just run `kubectl get pod my-pod` and not worry about specifying the namespace?
+Do you wish you could just run commands like `kubectl get pod my-pod` and not worry about specifying the namespace?
 
-Now you can :name_badge:
+Now you can 📬
 
 ## Getting started
 
