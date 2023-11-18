@@ -17,8 +17,8 @@ import (
 )
 
 type targetResource struct {
-	name            string
-	clusterResource *apiResource
+	name        string
+	apiResource *apiResource
 }
 
 type apiResource struct {
@@ -43,8 +43,8 @@ func main() {
 
 	discoveryClient, dynClient := k8sClient()
 
-	clusterResources := clusterResourcesOrDie(discoveryClient)
-	targetResource := targetResourceOrDie(discoveryClient, args, clusterResources)
+	apiResources := apiResourcesOrDie(discoveryClient)
+	targetResource := targetResourceOrDie(discoveryClient, args, apiResources)
 	namespaces := namespacesOrDie(dynClient, targetResource)
 
 	if len(namespaces) > 1 {
@@ -82,14 +82,14 @@ func runIfNsExists(args []string) {
 	}
 }
 
-func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) []apiResource {
+func apiResourcesOrDie(discoveryClient *discovery.DiscoveryClient) []apiResource {
 	apiGroupList, err := discoveryClient.ServerGroups()
 	if err != nil {
 		log.Fatalf("error while parsing resources %v", err)
 	}
 
-	var clusterResources []apiResource
-	var clusterResourceMp = make(map[string]apiResource)
+	var apiResources []apiResource
+	var apiResourceMp = make(map[string]apiResource)
 
 	for _, group := range apiGroupList.Groups {
 		for _, version := range group.Versions {
@@ -108,53 +108,52 @@ func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) []apiReso
 				names = append(names, resource.ShortNames...)
 
 				// merge with cluster resources with same api-name
-				names = append(clusterResourceMp[resource.Name].names, names...)
-				versions := append(clusterResourceMp[resource.Name].versions, version)
+				names = append(apiResourceMp[resource.Name].names, names...)
+				versions := append(apiResourceMp[resource.Name].versions, version)
 
-				clusterResourceMp[resource.Name] = apiResource{names: names, versions: versions, apiName: apiName}
+				apiResourceMp[resource.Name] = apiResource{names: unique(names), versions: uniqueVersions(versions), apiName: apiName}
 			}
 		}
 	}
 
-	for _, v := range clusterResourceMp {
-		clusterResources = append(clusterResources, v)
+	for _, v := range apiResourceMp {
+		apiResources = append(apiResources, v)
 	}
 
-	return clusterResources
+	return apiResources
 }
 
-func targetResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, clusterResources []apiResource) *targetResource {
-	command := args[0]
-	resourceOrPrefixed := args[1]
+func targetResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, apiResources []apiResource) *targetResource {
+	cmd := args[0]
+	cmdResourceName := args[1]
 
-	podName := strings.TrimPrefix(strings.TrimPrefix(resourceOrPrefixed, "pod/"), "pods/")
+	podName := strings.TrimPrefix(strings.TrimPrefix(cmdResourceName, "pod/"), "pods/")
 	podResource := &apiResource{names: []string{"pods"}, apiName: "pods", versions: []apiResourceVersion{{groupName: "", version: "v1"}}}
 
-	if command == "logs" {
-		return &targetResource{name: podName, clusterResource: podResource}
+	if cmd == "logs" {
+		return &targetResource{name: podName, apiResource: podResource}
 	}
-	if command == "port-forward" {
-		for _, cr := range clusterResources {
+	if cmd == "port-forward" {
+		for _, cr := range apiResources {
 			for _, name := range cr.names {
-				if strings.HasPrefix(resourceOrPrefixed, name+"/") {
-					return &targetResource{name: strings.TrimPrefix(resourceOrPrefixed, name+"/"), clusterResource: &cr}
+				if strings.HasPrefix(cmdResourceName, name+"/") {
+					return &targetResource{name: strings.TrimPrefix(cmdResourceName, name+"/"), apiResource: &cr}
 				}
 			}
 		}
-
-		return &targetResource{name: podName, clusterResource: podResource}
+		return &targetResource{name: podName, apiResource: podResource}
 	} else {
-		for _, cr := range clusterResources {
+		for _, cr := range apiResources {
 			for _, name := range cr.names {
-				if resourceOrPrefixed == name {
+				if cmdResourceName == name {
 					if len(args) < 3 {
 						log.Fatalf("Couldn't parse resource name, make sure its provided in the format <resource-type>/<resource> or <resource-type> <resource>, e.g: kubectl autons get pods <pod-name>")
 					}
-					return &targetResource{name: args[2], clusterResource: &cr}
+					return &targetResource{name: args[2], apiResource: &cr}
 				}
 
-				if strings.HasPrefix(resourceOrPrefixed, name+"/") {
-					return &targetResource{name: strings.TrimPrefix(resourceOrPrefixed, name+"/"), clusterResource: &cr}
+				if strings.HasPrefix(cmdResourceName, name+"/") {
+					return &targetResource{name: strings.TrimPrefix(cmdResourceName, name+"/"), apiResource: &cr}
 				}
 			}
 		}
@@ -168,8 +167,8 @@ func targetResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []stri
 func namespacesOrDie(dynClient *dynamic.DynamicClient, resource *targetResource) []string {
 	var namespaces []string
 
-	for _, v := range uniqueVersions(resource.clusterResource.versions) {
-		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: resource.clusterResource.apiName}
+	for _, v := range resource.apiResource.versions {
+		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: resource.apiResource.apiName}
 		resourceList, err := dynClient.Resource(resourceSchema).Namespace(v1.NamespaceAll).List(context.TODO(), v1.ListOptions{})
 
 		if err != nil {
@@ -198,17 +197,17 @@ func k8sClient() (*discovery.DiscoveryClient, *dynamic.DynamicClient) {
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
-		log.Fatalf("couldn't initialize client %v", err)
+		log.Fatalf("couldn't initialize client from kubeconfig %v", err)
 	}
 
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
 	if err != nil {
-		log.Fatalf("couldn't initialize client %v", err)
+		log.Fatalf("couldn't initialize discovery client %v", err)
 	}
 
 	dynClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		log.Fatalf("couldn't initialize client %v", err)
+		log.Fatalf("couldn't initialize dynamic client %v", err)
 	}
 
 	return discoveryClient, dynClient

@@ -1,7 +1,7 @@
-.PHONY: build build-cross
+.PHONY: build cross-compile
 
 build:
-	go build -ldflags="-w -s" -o bin/kubectl-autons main.go
+	go build -ldflags="-w -s" -o bin/kubectl-autons src/main.go
 
-build-cross:
-	./build-cross
+cross-compile:
+	./cross-compile
