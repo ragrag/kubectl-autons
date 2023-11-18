@@ -15,27 +15,27 @@ spec:
         matchLabels:
           os: darwin
           arch: amd64
-      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.0/kubectl-autons-darwin-amd64.tar.gz
-      sha256: 1936a6190fd645ccf95f92cafe5523c0e69cd83278d41f409d4d46815b7d3b4f
+      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.1/kubectl-autons-darwin-amd64.tar.gz
+      sha256: c88fa5ed3adbf381c2b45debf7ae1b802e315dea6ecfad7d8e493acbdb03dc52
       bin: kubectl-autons
     - selector:
         matchLabels:
           os: darwin
           arch: arm64
-      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.0/kubectl-autons-darwin-arm64.tar.gz
-      sha256: d72c303b94dd41652a1329a7bd742b0f42a64ceffc394f20c053d08d464ff0e7
+      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.1/kubectl-autons-darwin-arm64.tar.gz
+      sha256: 287122698ea2458a9e1f14829fae60348ff6b56a15c4ee4c60cf79a80f9f3d87
       bin: kubectl-autons
     - selector:
         matchLabels:
           os: linux
           arch: amd64
-      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.0/kubectl-autons-linux-amd64.tar.gz
-      sha256: 3547518ecb407d31fabe94e1ae23de73985e622f83ac5dd2b241803c504d0615
+      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.1/kubectl-autons-linux-amd64.tar.gz
+      sha256: 9131c1302b91592ab5d70d655a92671f88b30b572a14ef65ddfad5e679bddb14
       bin: kubectl-autons
     - selector:
         matchLabels:
           os: windows
           arch: amd64
-      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.0/kubectl-autons-windows-amd64.tar.gz
-      sha256: 4db98db7c9270486f691d6a78a73b124acf93feef5ad390e431d9ab1d4e0e3d3
+      uri: https://github.com/ragrag/kubectl-autons/releases/download/v0.2.1/kubectl-autons-windows-amd64.tar.gz
+      sha256: 2395f67c237114f474d6dfbd785413f139a82e2d3685eeb13eda764e4c8895eb
       bin: kubectl-autons.exe

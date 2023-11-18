@@ -119,6 +119,10 @@ func namespacesOrDie(target targetResource) []string {
 		}
 	}
 
+	if len(matches) == 0 {
+		log.Fatalf("Couldn't find namespace for resource %s of kind %s", target.name, target.kind)
+	}
+
 	return unique(matches)
 
 }
