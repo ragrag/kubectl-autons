@@ -1,35 +1,16 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
-
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 )
 
 type targetResource struct {
-	name        string
-	apiResource *apiResource
-}
-
-type apiResource struct {
-	apiName  string
-	names    []string
-	versions []apiResourceVersion
-}
-
-type apiResourceVersion struct {
-	groupName string
-	version   string
+	kind string
+	name string
 }
 
 func main() {
@@ -41,11 +22,8 @@ func main() {
 
 	runIfNsExists(args)
 
-	discoveryClient, dynClient := k8sClient()
-
-	apiResources := apiResourcesOrDie(discoveryClient)
-	targetResource := targetResourceOrDie(discoveryClient, args, apiResources)
-	namespaces := namespacesOrDie(dynClient, targetResource)
+	targetResource := targetResourceOrDie(args)
+	namespaces := namespacesOrDie(targetResource)
 
 	if len(namespaces) > 1 {
 		log.Fatalf("Found multiple namespaces for resource, please specify a namespace manually %s", namespaces)
@@ -82,135 +60,67 @@ func runIfNsExists(args []string) {
 	}
 }
 
-func apiResourcesOrDie(discoveryClient *discovery.DiscoveryClient) []apiResource {
-	apiGroupList, err := discoveryClient.ServerGroups()
-	if err != nil {
-		log.Fatalf("error while parsing resources %v", err)
-	}
-
-	var apiResources []apiResource
-	var apiResourceMp = make(map[string]apiResource)
-
-	for _, group := range apiGroupList.Groups {
-		for _, version := range group.Versions {
-			resourceList, err := discoveryClient.ServerResourcesForGroupVersion(version.GroupVersion)
-			if err != nil {
-				log.Fatalf("error while parsing resources %v", err)
-			}
-
-			for _, resource := range resourceList.APIResources {
-				apiName := resource.Name
-				version := apiResourceVersion{groupName: group.Name, version: version.Version}
-
-				var names []string
-
-				names = append(names, resource.Name, resource.SingularName)
-				names = append(names, resource.ShortNames...)
-
-				// merge with cluster resources with same api-name
-				names = append(apiResourceMp[resource.Name].names, names...)
-				versions := append(apiResourceMp[resource.Name].versions, version)
-
-				apiResourceMp[resource.Name] = apiResource{names: unique(names), versions: uniqueVersions(versions), apiName: apiName}
-			}
-		}
-	}
-
-	for _, v := range apiResourceMp {
-		apiResources = append(apiResources, v)
-	}
-
-	return apiResources
-}
-
-func targetResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, apiResources []apiResource) *targetResource {
+func targetResourceOrDie(args []string) targetResource {
 	cmd := args[0]
 	cmdResourceName := args[1]
 
-	podName := strings.TrimPrefix(strings.TrimPrefix(cmdResourceName, "pod/"), "pods/")
-	podResource := &apiResource{names: []string{"pods"}, apiName: "pods", versions: []apiResourceVersion{{groupName: "", version: "v1"}}}
-
 	if cmd == "logs" {
-		return &targetResource{name: podName, apiResource: podResource}
+		return targetResource{name: strings.TrimPrefix(strings.TrimPrefix(cmdResourceName, "/pod"), "pods/"), kind: "pods"}
 	}
 	if cmd == "port-forward" {
-		for _, cr := range apiResources {
-			for _, name := range cr.names {
-				if strings.HasPrefix(cmdResourceName, name+"/") {
-					return &targetResource{name: strings.TrimPrefix(cmdResourceName, name+"/"), apiResource: &cr}
-				}
+		if strings.Contains(cmdResourceName, "/") {
+			splitRes := strings.Split(cmdResourceName, "/")
+			if len(splitRes) == 2 {
+				return targetResource{name: splitRes[1], kind: splitRes[0]}
+			} else {
+				log.Fatalf("Couldn't parse resource name with <resource-type>/<resource> definition make sure its provided in the format <resource-type>/<resource>, e.g: kubectl autons port-forward pods/<pod-name>")
 			}
+		} else {
+			return targetResource{name: cmdResourceName, kind: "pods"}
 		}
-		return &targetResource{name: podName, apiResource: podResource}
 	} else {
-		for _, cr := range apiResources {
-			for _, name := range cr.names {
-				if cmdResourceName == name {
-					if len(args) < 3 {
-						log.Fatalf("Couldn't parse resource name, make sure its provided in the format <resource-type>/<resource> or <resource-type> <resource>, e.g: kubectl autons get pods <pod-name>")
-					}
-					return &targetResource{name: args[2], apiResource: &cr}
-				}
-
-				if strings.HasPrefix(cmdResourceName, name+"/") {
-					return &targetResource{name: strings.TrimPrefix(cmdResourceName, name+"/"), apiResource: &cr}
-				}
+		if strings.Contains(cmdResourceName, "/") {
+			splitRes := strings.Split(cmdResourceName, "/")
+			if len(splitRes) == 2 {
+				return targetResource{name: splitRes[1], kind: splitRes[0]}
+			} else {
+				log.Fatalf("Couldn't parse resource name with <resource-type>/<resource> definition make sure its provided in the format <resource-type>/<resource>, e.g: kubectl autons port-forward pods/<pod-name>")
 			}
+		} else if len(args) > 2 {
+			return targetResource{name: args[2], kind: cmdResourceName}
+		} else {
+			log.Fatalf("Couldn't parse resource name, make sure its provided in the format <resource-type>/<resource> or <resource-type> <resource>, e.g: kubectl autons port-forward pods/<pod-name>")
 		}
 	}
 
 	log.Fatal("Couldn't parse resource/resource-name/resource-version")
 
-	return nil
+	return targetResource{}
 }
 
-func namespacesOrDie(dynClient *dynamic.DynamicClient, resource *targetResource) []string {
-	var namespaces []string
+func namespacesOrDie(target targetResource) []string {
+	cmd := exec.Command("kubectl", "get", target.kind, "--all-namespaces")
 
-	for _, v := range resource.apiResource.versions {
-		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: resource.apiResource.apiName}
-		resourceList, err := dynClient.Resource(resourceSchema).Namespace(v1.NamespaceAll).List(context.TODO(), v1.ListOptions{})
+	var out bytes.Buffer
+	cmd.Stdout = &out
 
-		if err != nil {
-			log.Fatalf("Error finding resources: %s", err.Error())
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("Error finding namespace for resource %s of kind %s: %s", target.name, target.kind, err.Error())
+
+	}
+
+	var matches []string
+
+	output := out.String()
+	for _, line := range strings.Split(output, "\n") {
+		if strings.Contains(line, target.name) {
+			matches = append(matches, strings.Split(line, " ")[0])
 		}
-
-		for _, res := range resourceList.Items {
-			if res.GetName() == resource.name {
-				namespaces = append(namespaces, res.GetNamespace())
-			}
-		}
 	}
 
-	if len(namespaces) == 0 {
-		log.Fatalf("Couldn't find any namespaces for resource")
-	}
+	return unique(matches)
 
-	return unique(namespaces)
-}
-
-func k8sClient() (*discovery.DiscoveryClient, *dynamic.DynamicClient) {
-	var kubeconfig string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = filepath.Join(home, ".kube", "config")
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.Fatalf("couldn't initialize client from kubeconfig %v", err)
-	}
-
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
-	if err != nil {
-		log.Fatalf("couldn't initialize discovery client %v", err)
-	}
-
-	dynClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("couldn't initialize dynamic client %v", err)
-	}
-
-	return discoveryClient, dynClient
 }
 
 func unique(s []string) []string {
@@ -220,19 +130,6 @@ func unique(s []string) []string {
 		v := mp[entry]
 		if !v {
 			mp[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
-func uniqueVersions(resourceVersions []apiResourceVersion) []apiResourceVersion {
-	mp := make(map[string]bool)
-	var list []apiResourceVersion
-	for _, entry := range resourceVersions {
-		v := mp[entry.groupName+"/"+entry.version]
-		if !v {
-			mp[entry.groupName+"/"+entry.version] = true
 			list = append(list, entry)
 		}
 	}
