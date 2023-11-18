@@ -18,18 +18,13 @@ build_compress_sha() {
   echo "Building for ${os} (${arch})..."
   env GOOS=${os} GOARCH=${arch} go build -ldflags="-w -s" -o "${BIN_DIR}/${bin_name}" src/main.go
 
-  # Add the LICENSE file to the binary directory
   cp ${LICENSE_FILE} "${BIN_DIR}/LICENSE"
 
-  # Create tar.gz file
+  tar -czf "${BIN_DIR}/kubectl-autons-${os}-${arch}.tar.gz" -C "${BIN_DIR}" ${bin_name} LICENSE
 
-  tar -cf "${BIN_DIR}/kubectl-autons-${os}-${arch}.tar.gz" -C "${BIN_DIR}" ${bin_name} LICENSE
-
-  # Remove the binary and LICENSE file to avoid duplication in the next build
   rm "${BIN_DIR}/${bin_name}"
   rm "${BIN_DIR}/LICENSE"
 
-  # Calculate the SHA256 checksum
   shasum -a 256 "${BIN_DIR}/kubectl-autons-${os}-${arch}.tar.gz"
 }
 
