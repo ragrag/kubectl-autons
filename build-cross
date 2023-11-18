@@ -4,6 +4,10 @@
 BIN_DIR="./bin"
 mkdir -p "${BIN_DIR}"
 
+# native 
+echo "Building for native..."
+go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons" main.go
+
 # macOS (Intel)
 echo "Building for macOS (Intel)..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o "${BIN_DIR}/kubectl-autons-darwin-amd64" main.go

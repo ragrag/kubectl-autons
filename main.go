@@ -17,15 +17,14 @@ import (
 )
 
 type resourceParseResult struct {
-	resource string
-	name     string
-	versions []apiResourceVersion
+	resourceName    string
+	clusterResource *apiResource
 }
 
-type apiResourceMeta struct {
-	resources []string
-	versions  map[string][]apiResourceVersion
-	pluralMap map[string]string
+type apiResource struct {
+	apiName  string
+	names    []string
+	versions []apiResourceVersion
 }
 
 type apiResourceVersion struct {
@@ -34,22 +33,25 @@ type apiResourceVersion struct {
 }
 
 func main() {
-	args := os.Args
-	if len(args) < 3 {
+	args := os.Args[1:]
+
+	if len(args) < 2 {
 		log.Fatalf("insufficient command, use with kubectl autons <command> [<resource-type> <resource>|<resource-type>/<resource>]")
 	}
+
+	runIfNsExists(args)
 
 	discoveryClient, dynClient := k8sClient()
 
 	clusterResources := clusterResourcesOrDie(discoveryClient)
 	parsedResource := parseResourceOrDie(discoveryClient, args, clusterResources)
-	namespaces := namespacesOrDie(dynClient, clusterResources, parsedResource)
+	namespaces := namespacesOrDie(dynClient, parsedResource)
 
 	if len(namespaces) > 1 {
 		log.Fatalf("Found multiple namespaces for resource, please specify a namespace manually %s", namespaces)
 	}
 
-	argsWithNamespace := append(os.Args[1:], "--namespace", namespaces[0])
+	argsWithNamespace := append(args, "--namespace", namespaces[0])
 
 	cmd := exec.Command("kubectl", argsWithNamespace...)
 
@@ -62,64 +64,71 @@ func main() {
 	}
 }
 
-func parseResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, clusterResources *apiResourceMeta) *resourceParseResult {
-	command := args[1]
-	resourceOrPrefixed := args[2]
+func runIfNsExists(args []string) {
+	for _, arg := range args {
+		if arg == "--namespace" || arg == "-n" {
+			cmd := exec.Command("kubectl", args...)
 
-	var resource string
-	var name string
-	var versions []apiResourceVersion
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Stdin = os.Stdin
 
-	if command == "logs" {
-		resource = "pods"
-		name = strings.TrimPrefix(strings.TrimPrefix(resourceOrPrefixed, "pod/"), "pods/")
-		versions = clusterResources.versions["pods"]
-	}
-	if command == "port-forward" {
-		resource = "pods"
-		name = strings.TrimPrefix(strings.TrimPrefix(resourceOrPrefixed, "pod/"), "pods/")
-		versions = clusterResources.versions["pods"]
-		for _, r := range clusterResources.resources {
-			if strings.HasPrefix(resourceOrPrefixed, r+"/") {
-				resource = r
-				name = strings.TrimPrefix(resourceOrPrefixed, r+"/")
-				versions = clusterResources.versions[r]
-				break
-			}
-		}
-	} else {
-		for _, r := range clusterResources.resources {
-			if resourceOrPrefixed == r {
-				resource = r
-				if len(args) < 4 {
-					log.Fatalf("Couldn't parse resource name, make sure its provided in the format <resource-type>/<resource> or <resource-type> <resource>, e.g: kubectl autons get pods <pod-name>")
-				}
-				name = args[3]
-				versions = clusterResources.versions[r]
-				break
-			}
-
-			if strings.HasPrefix(resourceOrPrefixed, r+"/") {
-				resource = r
-				name = strings.TrimPrefix(resourceOrPrefixed, r+"/")
-				versions = clusterResources.versions[r]
-				break
+			if err := cmd.Run(); err != nil {
+				os.Exit(1)
+			} else {
+				os.Exit(0)
 			}
 		}
 	}
-
-	if resource == "" || name == "" || len(versions) == 0 {
-		log.Fatal("Couldn't parse resource/resource-name/resource-version")
-	}
-
-	return &resourceParseResult{resource, name, versions}
 }
 
-func namespacesOrDie(dynClient *dynamic.DynamicClient, clusterResources *apiResourceMeta, parsedResource *resourceParseResult) []string {
+func parseResourceOrDie(discoveryClient *discovery.DiscoveryClient, args []string, clusterResources []apiResource) *resourceParseResult {
+	command := args[0]
+	resourceOrPrefixed := args[1]
+
+	podName := strings.TrimPrefix(strings.TrimPrefix(resourceOrPrefixed, "pod/"), "pods/")
+	podResource := &apiResource{names: []string{"pods"}, apiName: "pods", versions: []apiResourceVersion{{groupName: "", version: "v1"}}}
+
+	if command == "logs" {
+		return &resourceParseResult{resourceName: podName, clusterResource: podResource}
+	}
+	if command == "port-forward" {
+		for _, cr := range clusterResources {
+			for _, name := range cr.names {
+				if strings.HasPrefix(resourceOrPrefixed, name+"/") {
+					return &resourceParseResult{resourceName: strings.TrimPrefix(resourceOrPrefixed, name+"/"), clusterResource: &cr}
+				}
+			}
+		}
+
+		return &resourceParseResult{resourceName: podName, clusterResource: podResource}
+	} else {
+		for _, cr := range clusterResources {
+			for _, name := range cr.names {
+				if resourceOrPrefixed == name {
+					if len(args) < 3 {
+						log.Fatalf("Couldn't parse resource name, make sure its provided in the format <resource-type>/<resource> or <resource-type> <resource>, e.g: kubectl autons get pods <pod-name>")
+					}
+					return &resourceParseResult{resourceName: args[2], clusterResource: &cr}
+				}
+
+				if strings.HasPrefix(resourceOrPrefixed, name+"/") {
+					return &resourceParseResult{resourceName: strings.TrimPrefix(resourceOrPrefixed, name+"/"), clusterResource: &cr}
+				}
+			}
+		}
+	}
+
+	log.Fatal("Couldn't parse resource/resource-name/resource-version")
+
+	return nil
+}
+
+func namespacesOrDie(dynClient *dynamic.DynamicClient, parsedResource *resourceParseResult) []string {
 	var namespaces []string
 
-	for _, v := range uniqueVersions(parsedResource.versions) {
-		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: clusterResources.pluralMap[parsedResource.resource]}
+	for _, v := range uniqueVersions(parsedResource.clusterResource.versions) {
+		resourceSchema := schema.GroupVersionResource{Group: v.groupName, Version: v.version, Resource: parsedResource.clusterResource.apiName}
 		resourceList, err := dynClient.Resource(resourceSchema).Namespace(v1.NamespaceAll).List(context.TODO(), v1.ListOptions{})
 
 		if err != nil {
@@ -127,7 +136,7 @@ func namespacesOrDie(dynClient *dynamic.DynamicClient, clusterResources *apiReso
 		}
 
 		for _, resource := range resourceList.Items {
-			if resource.GetName() == parsedResource.name {
+			if resource.GetName() == parsedResource.resourceName {
 				namespaces = append(namespaces, resource.GetNamespace())
 			}
 		}
@@ -140,15 +149,14 @@ func namespacesOrDie(dynClient *dynamic.DynamicClient, clusterResources *apiReso
 	return unique(namespaces)
 }
 
-func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResourceMeta {
+func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) []apiResource {
 	apiGroupList, err := discoveryClient.ServerGroups()
 	if err != nil {
 		log.Fatalf("error while parsing resources %v", err)
 	}
 
-	var resources []string
-	var versions = make(map[string][]apiResourceVersion)
-	var pluralMap = make(map[string]string)
+	var clusterResources []apiResource
+	var clusterResourceMp = make(map[string]apiResource)
 
 	for _, group := range apiGroupList.Groups {
 		for _, version := range group.Versions {
@@ -156,25 +164,30 @@ func clusterResourcesOrDie(discoveryClient *discovery.DiscoveryClient) *apiResou
 			if err != nil {
 				log.Fatalf("error while parsing resources %v", err)
 			}
+
 			for _, resource := range resourceList.APIResources {
-				versions[resource.Name] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
-				versions[resource.SingularName] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
+				apiName := resource.Name
+				version := apiResourceVersion{groupName: group.Name, version: version.Version}
 
-				pluralMap[resource.Name] = resource.Name
-				pluralMap[resource.SingularName] = resource.Name
+				var names []string
 
-				resources = append(resources, resource.Name, resource.SingularName)
+				names = append(names, resource.Name, resource.SingularName)
+				names = append(names, resource.ShortNames...)
 
-				for _, shortName := range resource.ShortNames {
-					versions[shortName] = append(versions[resource.Name], apiResourceVersion{group.Name, version.Version})
-					pluralMap[shortName] = resource.Name
-					resources = append(resources, shortName)
-				}
+				// merge with cluster resources with same api-name
+				names = append(clusterResourceMp[resource.Name].names, names...)
+				versions := append(clusterResourceMp[resource.Name].versions, version)
+
+				clusterResourceMp[resource.Name] = apiResource{names: names, versions: versions, apiName: apiName}
 			}
 		}
 	}
 
-	return &apiResourceMeta{resources, versions, pluralMap}
+	for _, v := range clusterResourceMp {
+		clusterResources = append(clusterResources, v)
+	}
+
+	return clusterResources
 }
 
 func k8sClient() (*discovery.DiscoveryClient, *dynamic.DynamicClient) {
