@@ -11,11 +11,15 @@ Do you wish you could just run commands like `kubectl get pod my-pod` and not wo
 Now you can 📬
 
 ## Getting started
+### Installation with [Krew](https://krew.sigs.k8s.io/)
+1. Run ```kubectl krew install autons```
+2. You're ready to go! Run `kubectl autons <command>` and never worry about namespaces again!
 
+### Manual Installation
 1. Download the latest release for your platfrom from github releases or build the binary from source with go build
 2. Make sure to rename the binary name to `kubectl-autons` and that it is executable
-2. Move the binary to a directory in your PATH
-3. Run `kubectl autons <command>` and never worry about namespaces again!
+3. Move the binary to a directory in your PATH
+4. You're ready to go! Run `kubectl autons <command>` and never worry about namespaces again!
 
 ## Some Examples
 
