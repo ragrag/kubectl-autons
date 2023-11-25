@@ -12,6 +12,7 @@ Now you can 📬
 
 ## Getting started
 ### Installation with [Krew](https://krew.sigs.k8s.io/)
+1. Make sure you have [Krew Installed](https://krew.sigs.k8s.io/docs/user-guide/setup/install/)
 1. Run ```kubectl krew install autons```
 2. You're ready to go! Run `kubectl autons <command>` and never worry about namespaces again!
 
