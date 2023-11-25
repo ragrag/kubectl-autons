@@ -17,7 +17,7 @@ Now you can 📬
 2. You're ready to go! Run `kubectl autons <command>` and never worry about namespaces again!
 
 ### Manual Installation
-1. Download the latest release for your platfrom from github releases or build the binary from source with go build
+1. Download the latest release for your platform from github releases or build the binary from source with go build
 2. Make sure to rename the binary name to `kubectl-autons` and that it is executable
 3. Move the binary to a directory in your PATH
 4. You're ready to go! Run `kubectl autons <command>` and never worry about namespaces again!
